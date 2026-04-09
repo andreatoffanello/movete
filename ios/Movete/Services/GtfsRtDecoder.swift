@@ -57,29 +57,40 @@ private struct VehicleRaw {
 }
 
 private func decodeVehiclePosition(_ data: Data) -> VehicleRaw {
+    // Proto fields (from gtfs-realtime.proto VehiclePosition):
+    //   1: trip (TripDescriptor)
+    //   2: position (Position)
+    //   3: current_stop_sequence (uint32)
+    //   4: current_status (enum)
+    //   5: timestamp (uint64)
+    //   6: congestion_level (enum)
+    //   7: stop_id (string)
+    //   8: vehicle (VehicleDescriptor)
+    //   9: occupancy_status (enum)
     var r = ProtoReader(data: data)
     var v = VehicleRaw()
     while let tag = r.readTag() {
         switch (tag.field, tag.wire) {
-        case (1, 2):
+        case (1, 2):  // trip
             let (t, ro) = decodeTripDescriptor(r.readLengthDelimited())
             v.tripId = t; v.routeId = ro
-        case (2, 2):
-            let raw = r.readLengthDelimited()
-            let (la, lo, be, sp) = decodePosition(raw)
-            if la != 0 || lo != 0 {
-                v.lat = la; v.lng = lo; v.bearing = be; v.speed = sp
-            } else {
-                v.label = decodeVehicleDescriptorLabel(raw)
-            }
-        case (3, 2):
+        case (2, 2):  // position
             let (la, lo, be, sp) = decodePosition(r.readLengthDelimited())
             v.lat = la; v.lng = lo; v.bearing = be; v.speed = sp
-        case (4, 0): v.currentStatus = UInt32(r.readVarint())
-        case (5, 0): v.timestamp = r.readVarint()
-        case (6, 0): v.currentStopSequence = UInt32(r.readVarint())
-        case (7, 2): v.stopId = r.readString()
-        case (9, 0): v.occupancyStatus = UInt32(r.readVarint())
+        case (3, 0):  // current_stop_sequence
+            v.currentStopSequence = UInt32(r.readVarint())
+        case (4, 0):  // current_status
+            v.currentStatus = UInt32(r.readVarint())
+        case (5, 0):  // timestamp
+            v.timestamp = r.readVarint()
+        case (6, 0):  // congestion_level (ignored for now)
+            _ = r.readVarint()
+        case (7, 2):  // stop_id
+            v.stopId = r.readString()
+        case (8, 2):  // vehicle (VehicleDescriptor)
+            v.label = decodeVehicleDescriptorLabel(r.readLengthDelimited())
+        case (9, 0):  // occupancy_status
+            v.occupancyStatus = UInt32(r.readVarint())
         default: r.skipField(wireType: tag.wire)
         }
     }
@@ -227,12 +238,19 @@ private func decodeAlertMessage(_ data: Data, entityId: String) -> ServiceAlert?
 }
 
 private func decodeEntitySelector(_ data: Data) -> (routeId: String, stopId: String) {
+    // Proto fields (EntitySelector):
+    //   1: agency_id (string)
+    //   2: route_id (string)
+    //   3: route_type (int32)
+    //   4: trip (TripDescriptor)
+    //   5: stop_id (string)
+    //   6: direction_id (uint32)
     var r = ProtoReader(data: data)
     var routeId = "", stopId = ""
     while let tag = r.readTag() {
         switch (tag.field, tag.wire) {
-        case (3, 2): routeId = r.readString()
-        case (5, 2): stopId = r.readString()
+        case (2, 2): routeId = r.readString()   // route_id (was wrong: field 3 = route_type!)
+        case (5, 2): stopId = r.readString()     // stop_id ✅
         default: r.skipField(wireType: tag.wire)
         }
     }
