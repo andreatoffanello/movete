@@ -42,7 +42,7 @@ struct MapScreen: View {
         .sheet(isPresented: $showSheet) {
             sheetContent
                 .presentationDetents(
-                    [.fraction(0.15), .fraction(0.5), .large],
+                    [.fraction(0.22), .fraction(0.5), .large],
                     selection: $state.sheetDetent
                 )
                 .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.5)))
@@ -57,7 +57,7 @@ struct MapScreen: View {
                 appState.sheetContent = .search
             }
             // If user drags to peek from stop/line, go home
-            if newDetent == .fraction(0.15) && appState.sheetContent != .home {
+            if newDetent == .fraction(0.22) && appState.sheetContent != .home {
                 appState.navigateHome()
             }
         }
@@ -103,7 +103,6 @@ struct MapScreen: View {
         .mapStyle(.standard(pointsOfInterest: .excludingAll))
         .mapControls {
             MapUserLocationButton()
-            MapCompass()
         }
         .onMapCameraChange(frequency: .onEnd) { context in
             visibleRegion = context.region
@@ -168,28 +167,35 @@ struct MapScreen: View {
         }
     }
 
+    @ViewBuilder
     private var sheetHeader: some View {
-        HStack {
-            if appState.canNavigateBack {
-                Button {
-                    appState.navigateBack()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 14, weight: .semibold))
-                        Text("Indietro")
-                            .font(MV.Typography.calloutMedium)
-                    }
-                    .foregroundStyle(MV.Colors.accent)
-                }
-                .padding(.leading, MV.Spacing.md)
-            }
-
-            Spacer()
+        if appState.sheetContent == .home || appState.sheetContent == .search {
+            // Minimal: just pull bar
             PullBar()
-            Spacer()
+                .padding(.top, 8)
+                .padding(.bottom, 4)
+        } else {
+            // Navigation header with back/close
+            HStack {
+                if appState.canNavigateBack {
+                    Button {
+                        appState.navigateBack()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 14, weight: .semibold))
+                            Text("Indietro")
+                                .font(MV.Typography.calloutMedium)
+                        }
+                        .foregroundStyle(MV.Colors.accent)
+                    }
+                    .padding(.leading, MV.Spacing.md)
+                }
 
-            if appState.sheetContent != .home {
+                Spacer()
+                PullBar()
+                Spacer()
+
                 Button {
                     appState.navigateHome()
                 } label: {
@@ -199,9 +205,9 @@ struct MapScreen: View {
                 }
                 .padding(.trailing, MV.Spacing.md)
             }
+            .frame(height: 36)
+            .padding(.top, 8)
         }
-        .frame(height: 36)
-        .padding(.top, 8)
     }
 
     // MARK: - Helpers

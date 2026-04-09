@@ -5,28 +5,56 @@ struct HomeSheet: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: MV.Spacing.lg) {
-                // Header
-                HStack {
-                    Text("Movete")
-                        .font(MV.Typography.displayMedium)
-                        .foregroundStyle(MV.Colors.textPrimary)
-                    Spacer()
-                }
-                .padding(.horizontal, MV.Spacing.md + 4)
-                .padding(.top, MV.Spacing.sm)
-
+            VStack(alignment: .leading, spacing: MV.Spacing.md) {
                 if appState.isLoading {
                     loadingState
                 } else if let error = appState.error {
                     errorState(error)
                 } else {
-                    nearbySection
+                    // Alert banner (if any active alerts)
+                    alertBanner
+
+                    // Favorites with live countdown (peek-visible, most important)
                     favoritesSection
+
+                    // Nearby stops
+                    nearbySection
+
+                    // Stats
                     statsSection
                 }
             }
+            .padding(.top, MV.Spacing.xs)
             .padding(.bottom, MV.Spacing.xxl)
+        }
+    }
+
+    // MARK: - Alert Banner
+
+    @ViewBuilder
+    private var alertBanner: some View {
+        let alertCount = appState.realtimeProvider.alerts.count
+        if alertCount > 0 {
+            Button {
+                appState.navigate(to: .alerts)
+            } label: {
+                HStack(spacing: MV.Spacing.xs) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(MV.Colors.warning)
+                    Text("\(alertCount) avvis\(alertCount == 1 ? "o" : "i") di servizio")
+                        .font(MV.Typography.calloutMedium)
+                        .foregroundStyle(MV.Colors.textPrimary)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(MV.Colors.textTertiary)
+                }
+                .padding(MV.Spacing.sm)
+                .background(MV.Colors.warningSubtle)
+                .clipShape(RoundedRectangle(cornerRadius: MV.Radius.md, style: .continuous))
+            }
+            .padding(.horizontal, MV.Spacing.md + 4)
         }
     }
 

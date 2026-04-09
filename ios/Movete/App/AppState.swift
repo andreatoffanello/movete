@@ -28,7 +28,7 @@ enum SheetContent: Equatable {
 
     var preferredDetent: PresentationDetent {
         switch self {
-        case .home:    return .fraction(0.15)
+        case .home:    return .fraction(0.22)
         case .search:  return .large
         case .stop:    return .fraction(0.5)
         case .line:    return .fraction(0.5)
@@ -53,7 +53,7 @@ final class AppState {
 
     // Navigation
     var sheetContent: SheetContent = .home
-    var sheetDetent: PresentationDetent = .fraction(0.15)
+    var sheetDetent: PresentationDetent = .fraction(0.22)
     private var navigationStack: [SheetContent] = []
 
     /// Max navigation depth — prevents user from getting lost
@@ -79,14 +79,14 @@ final class AppState {
             sheetDetent = previous.preferredDetent
         } else {
             sheetContent = .home
-            sheetDetent = .fraction(0.15)
+            sheetDetent = .fraction(0.22)
         }
     }
 
     func navigateHome() {
         navigationStack.removeAll()
         sheetContent = .home
-        sheetDetent = .fraction(0.15)
+        sheetDetent = .fraction(0.22)
     }
 
     var canNavigateBack: Bool {
