@@ -1,0 +1,17 @@
+# Build
+ios/DerivedData/
+ios/Movete.xcodeproj/xcuserdata/
+ios/Movete.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcuserstate
+
+# Pipeline output (generated, large)
+output/
+data/
+
+# Python
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+Thumbs.db
