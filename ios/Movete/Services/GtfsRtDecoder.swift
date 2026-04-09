@@ -161,7 +161,10 @@ private func decodeStopTimeEvent(_ data: Data) -> Int? {
     var delay: Int?
     while let tag = r.readTag() {
         switch (tag.field, tag.wire) {
-        case (1, 0): delay = Int(Int32(bitPattern: UInt32(r.readVarint())))
+        case (1, 0):
+            let raw = r.readVarint()
+            // Protobuf int32 is sign-extended to 64 bits; truncate safely
+            delay = Int(Int32(truncatingIfNeeded: raw))
         default: r.skipField(wireType: tag.wire)
         }
     }

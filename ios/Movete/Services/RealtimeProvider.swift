@@ -100,6 +100,7 @@ final class RealtimeProvider {
     // MARK: - Fetch
 
     private func fetchVehiclePositions() async {
+        let log = DebugLogger.shared
         do {
             let (data, _) = try await session.data(from: vpURL)
             let decoded = decodeGtfsRtVehicles(from: data)
@@ -108,29 +109,35 @@ final class RealtimeProvider {
             self.vehicleByTripId = Dictionary(decoded.map { ($0.tripId, $0) }, uniquingKeysWith: { _, new in new })
             self.vehiclesByRouteId = Dictionary(grouping: decoded, by: { $0.routeId })
             self.lastUpdate = Date()
+            log.log(.realtime, "VP: \(decoded.count) vehicles", detail: "\(data.count) bytes")
         } catch {
-            // Silent — RT is optional
+            log.log(.error, "VP fetch failed", detail: error.localizedDescription)
         }
     }
 
     private func fetchTripUpdates() async {
+        let log = DebugLogger.shared
         do {
             let (data, _) = try await session.data(from: tuURL)
             let decoded = decodeGtfsRtTripUpdates(from: data)
 
             self.tripUpdates = decoded
             self.tripUpdateByTripId = Dictionary(decoded.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
+            log.log(.realtime, "TU: \(decoded.count) trip updates", detail: "\(data.count) bytes")
         } catch {
-            // Silent
+            log.log(.error, "TU fetch failed", detail: error.localizedDescription)
         }
     }
 
     private func fetchAlerts() async {
+        let log = DebugLogger.shared
         do {
             let (data, _) = try await session.data(from: alertURL)
-            self.alerts = decodeGtfsRtAlerts(from: data)
+            let decoded = decodeGtfsRtAlerts(from: data)
+            self.alerts = decoded
+            log.log(.realtime, "Alerts: \(decoded.count)", detail: "\(data.count) bytes")
         } catch {
-            // Silent
+            log.log(.error, "Alerts fetch failed", detail: error.localizedDescription)
         }
     }
 }

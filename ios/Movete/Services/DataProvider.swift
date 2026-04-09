@@ -22,27 +22,32 @@ final class DataProvider {
     private var stopScheduleCache: [String: StopSchedule] = [:]
 
     // CDN base URL (GitHub Pages or local bundle)
-    private let cdnBase = "https://andreatoffanello.github.io/movete-data/roma"
+    private let cdnBase = "https://andreatoffanello.github.io/movete/roma"
 
     // MARK: - Boot: load core.json
 
     func load() async throws {
+        let log = DebugLogger.shared
         let core: CoreData
 
         // Try local bundle first (for development), then CDN
         if let bundleURL = Bundle.main.url(forResource: "core", withExtension: "json"),
            let data = try? Data(contentsOf: bundleURL) {
             core = try JSONDecoder().decode(CoreData.self, from: data)
+            log.log(.data, "Loaded core.json from bundle", detail: "\(data.count) bytes")
         } else if let cached = loadFromDisk() {
             core = cached
-            // Background refresh
+            log.log(.data, "Loaded core.json from disk cache")
             Task { await refreshFromCDN() }
         } else {
+            log.log(.network, "Downloading core.json from CDN...")
             core = try await downloadCore()
             saveToDisk(core)
+            log.log(.data, "Downloaded & cached core.json")
         }
 
         apply(core)
+        log.log(.info, "Data loaded: \(stops.count) stops, \(routes.count) routes")
     }
 
     private func apply(_ core: CoreData) {
@@ -81,7 +86,7 @@ final class DataProvider {
             stopScheduleCache[stopId] = schedule
             return schedule
         } catch {
-            print("[DataProvider] Failed to load stop \(stopId): \(error)")
+            DebugLogger.shared.log(.error, "Stop \(stopId) load failed", detail: error.localizedDescription)
             return nil
         }
     }
