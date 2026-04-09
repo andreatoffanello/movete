@@ -16,14 +16,28 @@ struct VehicleAnnotationView: View, Equatable {
     var body: some View {
         let color = route.map { Color(hex: $0.color) } ?? MV.Colors.bus
 
-        Circle()
-            .fill(color)
-            .frame(width: 14, height: 14)
-            .overlay(
-                Circle()
-                    .stroke(Color.white.opacity(0.5), lineWidth: 1.5)
-            )
-            .frame(width: 14, height: 14)
-            .allowsHitTesting(false)
+        ZStack {
+            Circle()
+                .fill(color.opacity(0.25))
+                .frame(width: 22, height: 22)
+
+            Circle()
+                .fill(color)
+                .frame(width: 12, height: 12)
+                .overlay(
+                    Circle()
+                        .stroke(Color.black.opacity(0.4), lineWidth: 1)
+                )
+
+            if let bearing = vehicle.bearing {
+                Image(systemName: "arrowtriangle.up.fill")
+                    .font(.system(size: 5, weight: .black))
+                    .foregroundStyle(.white)
+                    .rotationEffect(.degrees(bearing))
+                    .offset(y: -1)
+            }
+        }
+        .frame(width: 22, height: 22)
+        .allowsHitTesting(false)
     }
 }
