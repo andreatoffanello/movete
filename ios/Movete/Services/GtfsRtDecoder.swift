@@ -270,8 +270,8 @@ private func decodeTripDescriptor(_ data: Data) -> (tripId: String, routeId: Str
     var tripId = "", routeId = ""
     while let tag = r.readTag() {
         switch (tag.field, tag.wire) {
-        case (1, 2): tripId = r.readString()
-        case (3, 2): routeId = r.readString()
+        case (1, 2): tripId = r.readString()       // trip_id
+        case (5, 2): routeId = r.readString()       // route_id (was wrong: field 3 = start_date!)
         default: r.skipField(wireType: tag.wire)
         }
     }

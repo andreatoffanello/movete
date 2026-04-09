@@ -109,7 +109,10 @@ final class RealtimeProvider {
             self.vehicleByTripId = Dictionary(decoded.map { ($0.tripId, $0) }, uniquingKeysWith: { _, new in new })
             self.vehiclesByRouteId = Dictionary(grouping: decoded, by: { $0.routeId })
             self.lastUpdate = Date()
-            log.log(.realtime, "VP: \(decoded.count) vehicles", detail: "\(data.count) bytes")
+
+            // Debug: check route_id samples
+            let sampleIds = decoded.prefix(5).map { $0.routeId }
+            log.log(.realtime, "VP: \(decoded.count) vehicles", detail: "routeIds sample: \(sampleIds)")
         } catch {
             log.log(.error, "VP fetch failed", detail: error.localizedDescription)
         }
