@@ -62,6 +62,11 @@ struct StopSheet: View {
                     textColor: route.map { Color(hex: $0.textColor) } ?? .white,
                     size: .small
                 )
+                .onTapGesture {
+                    if let route {
+                        appState.navigate(to: .line(route))
+                    }
+                }
             }
             if lines.count > 8 {
                 Text("+\(lines.count - 8)")

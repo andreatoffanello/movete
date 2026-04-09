@@ -715,6 +715,7 @@ def build_routes_list(
             "color": f"#{color}" if not color.startswith("#") else color,
             "textColor": f"#{text_color}" if not text_color.startswith("#") else text_color,
             "transitType": transit_type,
+            "agencyId": r.get("agency_id", "").strip(),
             "route_url": r.get("route_url", "").strip(),
             "directions": route_dirs,
         })
@@ -821,6 +822,23 @@ def build_output(
     agency_name = agency_info[0].get("agency_name", operator_config.get("name", "")) if agency_info else ""
     agency_url = agency_info[0].get("agency_url", "") if agency_info else ""
 
+    # Build agencies list
+    agencies = []
+    rt_config = operator_config.get("gtfsRt", {})
+    has_rt = bool(rt_config.get("vehicle_positions"))
+    for a in feed.get("agency", []):
+        aid = a.get("agency_id", "").strip()
+        agencies.append({
+            "id": aid,
+            "name": a.get("agency_name", aid),
+            "url": a.get("agency_url", ""),
+            # RT is only available for ATAC (OP1) and Roma TPL (also OP1) feeds
+            "hasRealtime": aid in ("OP1", "OP265") and has_rt,
+        })
+
+    # Build route_id -> agency_id map for stop agency derivation
+    route_agency_map = {r["id"]: r.get("agencyId", "") for r in routes}
+
     output_dict = {
         "operator": {
             "id": operator_config["id"],
@@ -829,6 +847,7 @@ def build_output(
         },
         "lastUpdated": datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "validUntil": feed_end,
+        "agencies": agencies,
         "headsigns": headsign_list,
         "lineNames": line_name_list,
         "routeIds": route_id_list,
@@ -1022,6 +1041,7 @@ def main():
         "operator": output["operator"],
         "lastUpdated": output["lastUpdated"],
         "validUntil": output["validUntil"],
+        "agencies": output.get("agencies", []),
         "headsigns": output["headsigns"],
         "lineNames": output["lineNames"],
         "routeIds": output["routeIds"],

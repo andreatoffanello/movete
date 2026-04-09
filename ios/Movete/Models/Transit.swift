@@ -34,6 +34,7 @@ struct CoreData: Codable {
     let operator_info: OperatorInfo
     let lastUpdated: String
     let validUntil: String
+    let agencies: [Agency]?
     let headsigns: [String]
     let lineNames: [String]
     let routeIds: [String]
@@ -42,7 +43,7 @@ struct CoreData: Codable {
 
     enum CodingKeys: String, CodingKey {
         case operator_info = "operator"
-        case lastUpdated, validUntil, headsigns, lineNames, routeIds, routes, stops
+        case lastUpdated, validUntil, agencies, headsigns, lineNames, routeIds, routes, stops
     }
 }
 
@@ -50,6 +51,15 @@ struct OperatorInfo: Codable {
     let id: String
     let name: String
     let url: String?
+}
+
+// MARK: - Agency
+
+struct Agency: Codable, Identifiable {
+    let id: String
+    let name: String
+    let url: String?
+    let hasRealtime: Bool?
 }
 
 // MARK: - Stop (from core.json — no departures)
@@ -78,6 +88,7 @@ struct Route: Codable, Identifiable {
     let color: String
     let textColor: String
     let transitType: TransitType
+    let agencyId: String?
     let directions: [RouteDirection]?
 
     var swiftColor: Color {

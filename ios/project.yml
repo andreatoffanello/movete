@@ -13,12 +13,19 @@ settings:
     SWIFT_VERSION: "5.0"
     IPHONEOS_DEPLOYMENT_TARGET: "17.0"
 
+packages:
+  LucideIcons:
+    url: https://github.com/JakubMazur/lucide-icons-swift
+    from: "1.0.0"
+
 targets:
   Movete:
     type: application
     platform: iOS
     sources:
       - path: Movete
+    dependencies:
+      - package: LucideIcons
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.movete.roma

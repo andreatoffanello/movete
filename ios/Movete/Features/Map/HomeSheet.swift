@@ -54,6 +54,9 @@ struct HomeSheet: View {
                         HStack(spacing: MV.Spacing.sm) {
                             ForEach(nearby) { stop in
                                 NearbyStopCard(stop: stop)
+                                    .onTapGesture {
+                                        appState.navigate(to: .stop(stop))
+                                    }
                             }
                         }
                         .padding(.horizontal, MV.Spacing.md + 4)
@@ -86,6 +89,9 @@ struct HomeSheet: View {
                 ForEach(Array(appState.favoritesStore.stopIds.prefix(5)), id: \.self) { stopId in
                     if let stop = appState.dataProvider.stopById[stopId] {
                         FavoriteStopRow(stop: stop)
+                            .onTapGesture {
+                                appState.navigate(to: .stop(stop))
+                            }
                     }
                 }
                 .padding(.horizontal, MV.Spacing.md + 4)

@@ -10,25 +10,32 @@ struct MapScreen: View {
             span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
         )
     )
-    @State private var selectedStop: Stop?
     @State private var showSheet = true
-    @State private var sheetDetent: PresentationDetent = .fraction(0.15)
 
-    // Performance: viewport state for culling
+    // Performance: viewport state
     @State private var visibleRegion: MKCoordinateRegion?
     @State private var zoomLevel: Double = 0.05
     @State private var visibleStops: [Stop] = []
     @State private var visibleVehicles: [Vehicle] = []
-
-    // Throttle: debounce map camera changes
     @State private var cameraChangeTask: Task<Void, Never>?
 
+    /// True when sheet is at .large — map should blur
+    private var isSheetFull: Bool {
+        appState.sheetDetent == .large
+    }
+
     var body: some View {
+        @Bindable var state = appState
+
         ZStack {
             mapView
+                .blur(radius: isSheetFull ? 6 : 0)
+                .animation(.smooth, value: isSheetFull)
 
             VStack {
-                searchBar
+                if !isSheetFull {
+                    searchBar
+                }
                 Spacer()
             }
         }
@@ -36,7 +43,7 @@ struct MapScreen: View {
             sheetContent
                 .presentationDetents(
                     [.fraction(0.15), .fraction(0.5), .large],
-                    selection: $sheetDetent
+                    selection: $state.sheetDetent
                 )
                 .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.5)))
                 .presentationContentInteraction(.scrolls)
@@ -44,21 +51,21 @@ struct MapScreen: View {
                 .presentationDragIndicator(.hidden)
                 .interactiveDismissDisabled()
         }
-        .onChange(of: selectedStop) { _, newStop in
-            if newStop != nil {
-                withAnimation(.smooth) {
-                    sheetDetent = .fraction(0.5)
-                }
-                Haptics.light()
+        .onChange(of: appState.sheetDetent) { _, newDetent in
+            // If user drags to full from home, switch to search
+            if newDetent == .large && appState.sheetContent == .home {
+                appState.sheetContent = .search
+            }
+            // If user drags to peek from stop/line, go home
+            if newDetent == .fraction(0.15) && appState.sheetContent != .home {
+                appState.navigateHome()
             }
         }
-        // Refresh visible vehicles periodically (RT updates every 30s)
         .onReceive(Timer.publish(every: 5, on: .main, in: .common).autoconnect()) { _ in
-            updateVisibleVehicles()
+            if !isSheetFull { updateVisibleVehicles() }
         }
         .task {
             await appState.bootstrap()
-            // Initial viewport update after data loads
             updateVisibleContent()
         }
     }
@@ -67,26 +74,29 @@ struct MapScreen: View {
 
     @ViewBuilder
     private var mapView: some View {
-        Map(position: $cameraPosition, selection: $selectedStop) {
+        Map(position: $cameraPosition) {
             UserAnnotation()
 
-            // Stops: only at zoom > 15 (~0.008 degrees), via spatial index
             if zoomLevel < 0.01 {
                 ForEach(visibleStops) { stop in
                     Annotation(stop.name, coordinate: stop.coordinate, anchor: .bottom) {
-                        StopAnnotationView(stop: stop, isSelected: selectedStop == stop)
+                        StopAnnotationView(stop: stop, isSelected: isStopSelected(stop))
+                            .onTapGesture {
+                                appState.navigate(to: .stop(stop))
+                                flyTo(stop.coordinate)
+                            }
                     }
-                    .tag(stop)
                 }
             }
 
-            // Vehicles: viewport-culled, capped
-            ForEach(visibleVehicles) { vehicle in
-                Annotation("", coordinate: vehicle.coordinate) {
-                    VehicleAnnotationView(
-                        vehicle: vehicle,
-                        route: appState.dataProvider.routeById[vehicle.routeId]
-                    )
+            if !isSheetFull {
+                ForEach(visibleVehicles) { vehicle in
+                    Annotation("", coordinate: vehicle.coordinate) {
+                        VehicleAnnotationView(
+                            vehicle: vehicle,
+                            route: appState.dataProvider.routeById[vehicle.routeId]
+                        )
+                    }
                 }
             }
         }
@@ -100,16 +110,19 @@ struct MapScreen: View {
             zoomLevel = context.region.span.latitudeDelta
             throttledUpdateContent()
         }
+        .onTapGesture {
+            // Tap on empty map = go home
+            if appState.sheetContent != .home {
+                appState.navigateHome()
+            }
+        }
     }
 
     // MARK: - Search bar
 
     private var searchBar: some View {
         Button {
-            withAnimation(.smooth) {
-                selectedStop = nil
-                sheetDetent = .large
-            }
+            appState.navigate(to: .search)
         } label: {
             HStack(spacing: MV.Spacing.sm) {
                 Image(systemName: "magnifyingglass")
@@ -130,31 +143,86 @@ struct MapScreen: View {
         .padding(.top, 4)
     }
 
-    // MARK: - Sheet
+    // MARK: - Sheet content (state machine driven)
 
     @ViewBuilder
     private var sheetContent: some View {
         VStack(spacing: 0) {
-            PullBar()
-                .padding(.top, 8)
-                .padding(.bottom, 4)
+            // Back button + pull bar
+            sheetHeader
 
-            if let stop = selectedStop {
-                StopSheet(stop: stop)
-            } else if sheetDetent == .large {
-                SearchSheet()
-            } else {
+            switch appState.sheetContent {
+            case .home:
                 HomeSheet()
+            case .search:
+                SearchSheet()
+            case .stop(let stop):
+                StopSheet(stop: stop)
+            case .line(let route):
+                LineSheet(route: route)
+            case .trip(let vehicle):
+                TripSheet(vehicle: vehicle)
+            case .alerts:
+                AlertsSheet()
             }
         }
     }
 
-    // MARK: - Performance: throttled viewport updates
+    private var sheetHeader: some View {
+        HStack {
+            if appState.canNavigateBack {
+                Button {
+                    appState.navigateBack()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Indietro")
+                            .font(MV.Typography.calloutMedium)
+                    }
+                    .foregroundStyle(MV.Colors.accent)
+                }
+                .padding(.leading, MV.Spacing.md)
+            }
+
+            Spacer()
+            PullBar()
+            Spacer()
+
+            if appState.sheetContent != .home {
+                Button {
+                    appState.navigateHome()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(MV.Colors.textTertiary)
+                }
+                .padding(.trailing, MV.Spacing.md)
+            }
+        }
+        .frame(height: 36)
+        .padding(.top, 8)
+    }
+
+    // MARK: - Helpers
+
+    private func isStopSelected(_ stop: Stop) -> Bool {
+        if case .stop(let s) = appState.sheetContent { return s.id == stop.id }
+        return false
+    }
+
+    private func flyTo(_ coordinate: CLLocationCoordinate2D) {
+        withAnimation(.dramatic) {
+            cameraPosition = .region(MKCoordinateRegion(
+                center: coordinate,
+                span: MKCoordinateSpan(latitudeDelta: 0.008, longitudeDelta: 0.008)
+            ))
+        }
+    }
 
     private func throttledUpdateContent() {
         cameraChangeTask?.cancel()
         cameraChangeTask = Task {
-            // 150ms debounce — prevents thrashing during pan/zoom
             try? await Task.sleep(for: .milliseconds(150))
             guard !Task.isCancelled else { return }
             updateVisibleContent()
@@ -163,15 +231,13 @@ struct MapScreen: View {
 
     private func updateVisibleContent() {
         guard let region = visibleRegion, appState.dataProvider.isLoaded else { return }
+        let latD = region.span.latitudeDelta / 2
+        let lngD = region.span.longitudeDelta / 2
+        let minLat = region.center.latitude - latD
+        let maxLat = region.center.latitude + latD
+        let minLng = region.center.longitude - lngD
+        let maxLng = region.center.longitude + lngD
 
-        let latDelta = region.span.latitudeDelta / 2
-        let lngDelta = region.span.longitudeDelta / 2
-        let minLat = region.center.latitude - latDelta
-        let maxLat = region.center.latitude + latDelta
-        let minLng = region.center.longitude - lngDelta
-        let maxLng = region.center.longitude + lngDelta
-
-        // Stops via spatial index (only when zoomed in enough)
         if zoomLevel < 0.01 {
             visibleStops = appState.dataProvider.stopsInRegion(
                 minLat: minLat, maxLat: maxLat, minLng: minLng, maxLng: maxLng
@@ -179,27 +245,22 @@ struct MapScreen: View {
         } else {
             visibleStops = []
         }
-
         updateVisibleVehicles()
     }
 
     private func updateVisibleVehicles() {
         guard let region = visibleRegion else { return }
+        let latD = region.span.latitudeDelta / 2
+        let lngD = region.span.longitudeDelta / 2
+        let minLat = region.center.latitude - latD
+        let maxLat = region.center.latitude + latD
+        let minLng = region.center.longitude - lngD
+        let maxLng = region.center.longitude + lngD
 
-        let latDelta = region.span.latitudeDelta / 2
-        let lngDelta = region.span.longitudeDelta / 2
-        let minLat = region.center.latitude - latDelta
-        let maxLat = region.center.latitude + latDelta
-        let minLng = region.center.longitude - lngDelta
-        let maxLng = region.center.longitude + lngDelta
-
-        // Viewport cull + cap at 300 to prevent MapKit choking
         let maxVehicles = 300
-        let all = appState.realtimeProvider.vehicles
         var filtered: [Vehicle] = []
-        filtered.reserveCapacity(min(all.count, maxVehicles))
-
-        for v in all {
+        filtered.reserveCapacity(min(appState.realtimeProvider.vehicles.count, maxVehicles))
+        for v in appState.realtimeProvider.vehicles {
             if v.latitude >= minLat && v.latitude <= maxLat &&
                v.longitude >= minLng && v.longitude <= maxLng {
                 filtered.append(v)
@@ -207,6 +268,43 @@ struct MapScreen: View {
             }
         }
         visibleVehicles = filtered
+    }
+}
+
+// MARK: - Placeholder views for new sheet types
+
+struct LineSheet: View {
+    let route: Route
+    var body: some View {
+        ScrollView {
+            Text("LineSheet: \(route.name)")
+                .font(MV.Typography.headline)
+                .foregroundStyle(MV.Colors.textPrimary)
+                .padding()
+        }
+    }
+}
+
+struct TripSheet: View {
+    let vehicle: Vehicle
+    var body: some View {
+        ScrollView {
+            Text("TripSheet: vehicle \(vehicle.id)")
+                .font(MV.Typography.headline)
+                .foregroundStyle(MV.Colors.textPrimary)
+                .padding()
+        }
+    }
+}
+
+struct AlertsSheet: View {
+    var body: some View {
+        ScrollView {
+            Text("AlertsSheet")
+                .font(MV.Typography.headline)
+                .foregroundStyle(MV.Colors.textPrimary)
+                .padding()
+        }
     }
 }
 

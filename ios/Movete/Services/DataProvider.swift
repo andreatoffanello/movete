@@ -13,10 +13,14 @@ final class DataProvider {
     var routeIds: [String] = []
     var isLoaded = false
 
+    // Agencies
+    var agencies: [Agency] = []
+
     // Indexes for O(1) lookup
     private(set) var stopById: [String: Stop] = [:]
     private(set) var routeById: [String: Route] = [:]
     private(set) var routeByName: [String: Route] = [:]
+    private(set) var agencyById: [String: Agency] = [:]
 
     // Spatial index for fast viewport queries (5000+ stops)
     private(set) var stopSpatialIndex = SpatialIndex<Stop>()
@@ -60,12 +64,14 @@ final class DataProvider {
         // Apply to main actor
         self.stops = parsed.stops
         self.routes = parsed.routes
+        self.agencies = parsed.agencies
         self.headsigns = parsed.headsigns
         self.lineNames = parsed.lineNames
         self.routeIds = parsed.routeIds
         self.stopById = parsed.stopById
         self.routeById = parsed.routeById
         self.routeByName = parsed.routeByName
+        self.agencyById = parsed.agencyById
         self.stopSpatialIndex = parsed.spatialIndex
         self.searchIndex = parsed.searchIndex
         self.isLoaded = true
@@ -78,12 +84,14 @@ final class DataProvider {
     private struct ParsedData: Sendable {
         let stops: [Stop]
         let routes: [Route]
+        let agencies: [Agency]
         let headsigns: [String]
         let lineNames: [String]
         let routeIds: [String]
         let stopById: [String: Stop]
         let routeById: [String: Route]
         let routeByName: [String: Route]
+        let agencyById: [String: Agency]
         let spatialIndex: SpatialIndex<Stop>
         let searchIndex: SearchIndex
     }
@@ -95,6 +103,8 @@ final class DataProvider {
         let stopById = Dictionary(uniqueKeysWithValues: core.stops.map { ($0.id, $0) })
         let routeById = Dictionary(uniqueKeysWithValues: core.routes.map { ($0.id, $0) })
         let routeByName = Dictionary(uniqueKeysWithValues: core.routes.map { ($0.name, $0) })
+        let agencies = core.agencies ?? []
+        let agencyById = Dictionary(uniqueKeysWithValues: agencies.map { ($0.id, $0) })
 
         // Build spatial index
         let spatial = SpatialIndex<Stop>()
@@ -104,9 +114,10 @@ final class DataProvider {
         let search = SearchIndex.build(stops: core.stops, routes: core.routes)
 
         return ParsedData(
-            stops: core.stops, routes: core.routes,
+            stops: core.stops, routes: core.routes, agencies: agencies,
             headsigns: core.headsigns, lineNames: core.lineNames, routeIds: core.routeIds,
             stopById: stopById, routeById: routeById, routeByName: routeByName,
+            agencyById: agencyById,
             spatialIndex: spatial, searchIndex: search
         )
     }
