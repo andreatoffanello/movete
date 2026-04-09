@@ -1,0 +1,105 @@
+name: Update GTFS Data
+
+on:
+  schedule:
+    # Ogni giorno alle 4:00 UTC (6:00 ora italiana)
+    - cron: '0 4 * * *'
+  workflow_dispatch: # Trigger manuale
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: deploy
+
+      - name: Check if GTFS feed changed
+        id: check
+        run: |
+          FEED_URL="https://romamobilita.it/sites/default/files/rome_static_gtfs.zip"
+
+          # Leggi ETag salvato dall'ultimo run
+          OLD_ETAG=""
+          if [ -f deploy/.last-etag ]; then
+            OLD_ETAG=$(cat deploy/.last-etag)
+          fi
+
+          # HEAD request per il nuovo ETag/Last-Modified
+          HEADERS=$(curl -sI "$FEED_URL" 2>/dev/null)
+          NEW_ETAG=$(echo "$HEADERS" | grep -i "^etag:" | tr -d '\r' | cut -d' ' -f2-)
+          LAST_MODIFIED=$(echo "$HEADERS" | grep -i "^last-modified:" | tr -d '\r' | cut -d' ' -f2-)
+
+          if [ -z "$NEW_ETAG" ]; then
+            NEW_ETAG="$LAST_MODIFIED"
+          fi
+
+          echo "Old ETag: $OLD_ETAG"
+          echo "New ETag: $NEW_ETAG"
+
+          if [ "$OLD_ETAG" = "$NEW_ETAG" ] && [ -n "$OLD_ETAG" ]; then
+            echo "Feed non cambiato, skip rebuild."
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "Feed cambiato (o primo run), rebuilding."
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "$NEW_ETAG" > deploy/.last-etag
+          fi
+
+      - name: Checkout main (pipeline code)
+        if: steps.check.outputs.changed == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: src
+
+      - name: Setup Python
+        if: steps.check.outputs.changed == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run pipeline
+        if: steps.check.outputs.changed == 'true'
+        working-directory: src
+        run: python3 pipeline/build.py roma
+
+      - name: Update gh-pages content
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          cd deploy
+          rm -rf roma/
+          mkdir -p roma
+          cp ../src/output/roma/core.json roma/
+          cp -r ../src/output/roma/stops roma/
+          cp -r ../src/output/roma/routes roma/
+
+          echo "core.json: $(du -h roma/core.json | cut -f1)"
+          echo "stops: $(ls roma/stops/ | wc -l) files"
+          echo "routes: $(ls roma/routes/ | wc -l) files"
+
+      - name: Deploy to gh-pages
+        if: steps.check.outputs.changed == 'true'
+        working-directory: deploy
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "Nessun cambiamento nei dati."
+          else
+            TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
+            git commit -m "Update GTFS data — $TIMESTAMP"
+            git push
+            echo "Dati aggiornati e pubblicati su gh-pages."
+          fi
+
+      - name: Skip summary
+        if: steps.check.outputs.changed == 'false'
+        run: echo "Feed invariato. Nessun rebuild necessario."
