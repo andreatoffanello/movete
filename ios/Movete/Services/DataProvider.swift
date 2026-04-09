@@ -18,82 +18,170 @@ final class DataProvider {
     private(set) var routeById: [String: Route] = [:]
     private(set) var routeByName: [String: Route] = [:]
 
-    // Cache for on-demand data
+    // Spatial index for fast viewport queries (5000+ stops)
+    private(set) var stopSpatialIndex = SpatialIndex<Stop>()
+
+    // Search index (pre-built, normalized)
+    private(set) var searchIndex = SearchIndex()
+
+    // Cache for on-demand stop schedules
     private var stopScheduleCache: [String: StopSchedule] = [:]
 
-    // CDN base URL (GitHub Pages or local bundle)
     private let cdnBase = "https://andreatoffanello.github.io/movete/roma"
 
-    // MARK: - Boot: load core.json
+    // MARK: - Boot: load core.json (heavy work off main thread)
 
     func load() async throws {
         let log = DebugLogger.shared
-        let core: CoreData
+        let data: Data
 
-        // Try local bundle first (for development), then CDN
         if let bundleURL = Bundle.main.url(forResource: "core", withExtension: "json"),
-           let data = try? Data(contentsOf: bundleURL) {
-            core = try JSONDecoder().decode(CoreData.self, from: data)
+           let bundleData = try? Data(contentsOf: bundleURL) {
+            data = bundleData
             log.log(.data, "Loaded core.json from bundle", detail: "\(data.count) bytes")
-        } else if let cached = loadFromDisk() {
-            core = cached
+        } else if let diskData = loadDataFromDisk() {
+            data = diskData
             log.log(.data, "Loaded core.json from disk cache")
-            Task { await refreshFromCDN() }
+            Task.detached { [cdnBase] in
+                await Self.backgroundRefreshFromCDN(cdnBase: cdnBase, cacheURL: self.cacheURL)
+            }
         } else {
             log.log(.network, "Downloading core.json from CDN...")
-            core = try await downloadCore()
-            saveToDisk(core)
+            data = try await downloadCoreData()
+            saveDataToDisk(data)
             log.log(.data, "Downloaded & cached core.json")
         }
 
-        apply(core)
+        // Parse + index on background thread
+        let parsed = try await Task.detached(priority: .userInitiated) {
+            try Self.parseAndIndex(data: data)
+        }.value
+
+        // Apply to main actor
+        self.stops = parsed.stops
+        self.routes = parsed.routes
+        self.headsigns = parsed.headsigns
+        self.lineNames = parsed.lineNames
+        self.routeIds = parsed.routeIds
+        self.stopById = parsed.stopById
+        self.routeById = parsed.routeById
+        self.routeByName = parsed.routeByName
+        self.stopSpatialIndex = parsed.spatialIndex
+        self.searchIndex = parsed.searchIndex
+        self.isLoaded = true
+
         log.log(.info, "Data loaded: \(stops.count) stops, \(routes.count) routes")
     }
 
-    private func apply(_ core: CoreData) {
-        self.stops = core.stops
-        self.routes = core.routes
-        self.headsigns = core.headsigns
-        self.lineNames = core.lineNames
-        self.routeIds = core.routeIds
+    // MARK: - Background parse + index (runs off main thread)
 
-        // Build indexes
-        self.stopById = Dictionary(uniqueKeysWithValues: core.stops.map { ($0.id, $0) })
-        self.routeById = Dictionary(uniqueKeysWithValues: core.routes.map { ($0.id, $0) })
-        self.routeByName = Dictionary(uniqueKeysWithValues: core.routes.map { ($0.name, $0) })
-
-        self.isLoaded = true
+    private struct ParsedData: Sendable {
+        let stops: [Stop]
+        let routes: [Route]
+        let headsigns: [String]
+        let lineNames: [String]
+        let routeIds: [String]
+        let stopById: [String: Stop]
+        let routeById: [String: Route]
+        let routeByName: [String: Route]
+        let spatialIndex: SpatialIndex<Stop>
+        let searchIndex: SearchIndex
     }
 
-    // MARK: - On-demand: stop schedule
+    nonisolated private static func parseAndIndex(data: Data) throws -> ParsedData {
+        let core = try JSONDecoder().decode(CoreData.self, from: data)
+
+        // Build indexes
+        let stopById = Dictionary(uniqueKeysWithValues: core.stops.map { ($0.id, $0) })
+        let routeById = Dictionary(uniqueKeysWithValues: core.routes.map { ($0.id, $0) })
+        let routeByName = Dictionary(uniqueKeysWithValues: core.routes.map { ($0.name, $0) })
+
+        // Build spatial index
+        let spatial = SpatialIndex<Stop>()
+        spatial.buildFromItems(core.stops.map { ($0, $0.lat, $0.lng) })
+
+        // Build search index
+        let search = SearchIndex.build(stops: core.stops, routes: core.routes)
+
+        return ParsedData(
+            stops: core.stops, routes: core.routes,
+            headsigns: core.headsigns, lineNames: core.lineNames, routeIds: core.routeIds,
+            stopById: stopById, routeById: routeById, routeByName: routeByName,
+            spatialIndex: spatial, searchIndex: search
+        )
+    }
+
+    // MARK: - Viewport query (uses spatial index)
+
+    func stopsInRegion(minLat: Double, maxLat: Double, minLng: Double, maxLng: Double) -> [Stop] {
+        stopSpatialIndex.query(minLat: minLat, maxLat: maxLat, minLng: minLng, maxLng: maxLng)
+    }
+
+    // MARK: - Nearby stops (uses spatial index + CLLocation for exact distance)
+
+    func nearbyStops(to coordinate: CLLocationCoordinate2D, limit: Int = 5, radiusMeters: Double = 500) -> [Stop] {
+        // ~0.005 degrees ≈ 500m at Rome's latitude
+        let degRadius = radiusMeters / 111_000
+        let candidates = stopSpatialIndex.query(
+            minLat: coordinate.latitude - degRadius,
+            maxLat: coordinate.latitude + degRadius,
+            minLng: coordinate.longitude - degRadius,
+            maxLng: coordinate.longitude + degRadius
+        )
+
+        let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        return candidates
+            .map { ($0, location.distance(from: CLLocation(latitude: $0.lat, longitude: $0.lng))) }
+            .filter { $0.1 <= radiusMeters }
+            .sorted { $0.1 < $1.1 }
+            .prefix(limit)
+            .map { $0.0 }
+    }
+
+    // MARK: - Search
+
+    func search(_ query: String, limit: Int = 50) -> [SearchIndex.Entry] {
+        searchIndex.search(query, limit: limit)
+    }
+
+    // MARK: - On-demand: stop schedule (background decode)
 
     func loadStopSchedule(stopId: String) async -> StopSchedule? {
         if let cached = stopScheduleCache[stopId] { return cached }
 
         // Try bundle
         if let bundleURL = Bundle.main.url(forResource: stopId, withExtension: "json", subdirectory: "stops"),
-           let data = try? Data(contentsOf: bundleURL),
-           let schedule = try? JSONDecoder().decode(StopSchedule.self, from: data) {
-            stopScheduleCache[stopId] = schedule
-            return schedule
+           let data = try? Data(contentsOf: bundleURL) {
+            return await decodeStopSchedule(data: data, stopId: stopId)
         }
 
         // CDN
         guard let url = URL(string: "\(cdnBase)/stops/\(stopId).json") else { return nil }
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
-            let schedule = try JSONDecoder().decode(StopSchedule.self, from: data)
-            stopScheduleCache[stopId] = schedule
-            return schedule
+            return await decodeStopSchedule(data: data, stopId: stopId)
         } catch {
             DebugLogger.shared.log(.error, "Stop \(stopId) load failed", detail: error.localizedDescription)
             return nil
         }
     }
 
+    private func decodeStopSchedule(data: Data, stopId: String) async -> StopSchedule? {
+        // Decode on background thread
+        do {
+            let schedule = try await Task.detached(priority: .userInitiated) {
+                try JSONDecoder().decode(StopSchedule.self, from: data)
+            }.value
+            stopScheduleCache[stopId] = schedule
+            return schedule
+        } catch {
+            DebugLogger.shared.log(.error, "Stop \(stopId) decode failed", detail: error.localizedDescription)
+            return nil
+        }
+    }
+
     /// Resolve indexed departures into UI-ready Departure objects
     func resolveDepartures(from schedule: StopSchedule, forDayIndex dayIndex: Int) -> [Departure] {
-        // Find the day key that contains this day index
         let dayNames = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
         guard dayIndex >= 0, dayIndex < 7 else { return [] }
         let targetDay = dayNames[dayIndex]
@@ -109,6 +197,8 @@ final class DataProvider {
         guard let key = matchedKey, let entries = schedule.departures[key] else { return [] }
 
         var result: [Departure] = []
+        result.reserveCapacity(entries.count)
+
         for (idx, entry) in entries.enumerated() {
             guard entry.count >= 3 else { continue }
 
@@ -124,16 +214,14 @@ final class DataProvider {
             let dock = entry.count > 3 ? entry[3].stringValue : nil
             let tripIdx = entry.count > 5 ? entry[5].intValue : nil
 
-            // Parse time to minutes
             let parts = time.split(separator: ":")
             let h = Int(parts.first ?? "0") ?? 0
             let m = Int(parts.last ?? "0") ?? 0
-            let minutes = h * 60 + m
 
             result.append(Departure(
                 id: tripIdx.map { "trip_\($0)" } ?? "dep_\(idx)",
                 time: time,
-                minutes: minutes,
+                minutes: h * 60 + m,
                 lineName: lineName,
                 lineColor: route?.color ?? "#3B82F6",
                 lineTextColor: route?.textColor ?? "#FFFFFF",
@@ -148,22 +236,7 @@ final class DataProvider {
         return result
     }
 
-    // MARK: - Nearby stops
-
-    func nearbyStops(to coordinate: CLLocationCoordinate2D, limit: Int = 5, radiusMeters: Double = 500) -> [Stop] {
-        let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
-        return stops
-            .map { stop in
-                let dist = location.distance(from: CLLocation(latitude: stop.lat, longitude: stop.lng))
-                return (stop, dist)
-            }
-            .filter { $0.1 <= radiusMeters }
-            .sorted { $0.1 < $1.1 }
-            .prefix(limit)
-            .map { $0.0 }
-    }
-
-    // MARK: - Disk cache
+    // MARK: - Disk cache (raw Data, not re-encoded)
 
     private var cacheURL: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -171,31 +244,28 @@ final class DataProvider {
             .appendingPathComponent("core.json")
     }
 
-    private func loadFromDisk() -> CoreData? {
-        guard FileManager.default.fileExists(atPath: cacheURL.path),
-              let data = try? Data(contentsOf: cacheURL) else { return nil }
-        return try? JSONDecoder().decode(CoreData.self, from: data)
+    private func loadDataFromDisk() -> Data? {
+        guard FileManager.default.fileExists(atPath: cacheURL.path) else { return nil }
+        return try? Data(contentsOf: cacheURL)
     }
 
-    private func saveToDisk(_ core: CoreData) {
+    private func saveDataToDisk(_ data: Data) {
         let dir = cacheURL.deletingLastPathComponent()
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        if let data = try? JSONEncoder().encode(core) {
-            try? data.write(to: cacheURL)
-        }
+        try? data.write(to: cacheURL)
     }
 
-    private func downloadCore() async throws -> CoreData {
-        guard let url = URL(string: "\(cdnBase)/core.json") else {
-            throw URLError(.badURL)
-        }
+    private func downloadCoreData() async throws -> Data {
+        guard let url = URL(string: "\(cdnBase)/core.json") else { throw URLError(.badURL) }
         let (data, _) = try await URLSession.shared.data(from: url)
-        return try JSONDecoder().decode(CoreData.self, from: data)
+        return data
     }
 
-    private func refreshFromCDN() async {
-        guard let core = try? await downloadCore() else { return }
-        saveToDisk(core)
-        apply(core)
+    private static func backgroundRefreshFromCDN(cdnBase: String, cacheURL: URL) async {
+        guard let url = URL(string: "\(cdnBase)/core.json"),
+              let (data, _) = try? await URLSession.shared.data(from: url) else { return }
+        let dir = cacheURL.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try? data.write(to: cacheURL)
     }
 }

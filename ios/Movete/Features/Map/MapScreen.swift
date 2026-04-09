@@ -10,17 +10,23 @@ struct MapScreen: View {
             span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
         )
     )
-    @State private var visibleRegion: MKCoordinateRegion?
     @State private var selectedStop: Stop?
     @State private var showSheet = true
     @State private var sheetDetent: PresentationDetent = .fraction(0.15)
-    @State private var mapZoom: Double = 0.05
+
+    // Performance: viewport state for culling
+    @State private var visibleRegion: MKCoordinateRegion?
+    @State private var zoomLevel: Double = 0.05
+    @State private var visibleStops: [Stop] = []
+    @State private var visibleVehicles: [Vehicle] = []
+
+    // Throttle: debounce map camera changes
+    @State private var cameraChangeTask: Task<Void, Never>?
 
     var body: some View {
         ZStack {
             mapView
 
-            // Top search bar overlay
             VStack {
                 searchBar
                 Spacer()
@@ -43,10 +49,17 @@ struct MapScreen: View {
                 withAnimation(.smooth) {
                     sheetDetent = .fraction(0.5)
                 }
+                Haptics.light()
             }
+        }
+        // Refresh visible vehicles periodically (RT updates every 30s)
+        .onReceive(Timer.publish(every: 5, on: .main, in: .common).autoconnect()) { _ in
+            updateVisibleVehicles()
         }
         .task {
             await appState.bootstrap()
+            // Initial viewport update after data loads
+            updateVisibleContent()
         }
     }
 
@@ -55,12 +68,10 @@ struct MapScreen: View {
     @ViewBuilder
     private var mapView: some View {
         Map(position: $cameraPosition, selection: $selectedStop) {
-            // User location
             UserAnnotation()
 
-            // Stops — only show when zoomed in enough
-            if mapZoom < 0.02, appState.dataProvider.isLoaded {
-                let visibleStops = stopsInVisibleRegion()
+            // Stops: only at zoom > 15 (~0.008 degrees), via spatial index
+            if zoomLevel < 0.01 {
                 ForEach(visibleStops) { stop in
                     Annotation(stop.name, coordinate: stop.coordinate, anchor: .bottom) {
                         StopAnnotationView(stop: stop, isSelected: selectedStop == stop)
@@ -69,8 +80,8 @@ struct MapScreen: View {
                 }
             }
 
-            // Live vehicles
-            ForEach(appState.realtimeProvider.vehicles) { vehicle in
+            // Vehicles: viewport-culled, capped
+            ForEach(visibleVehicles) { vehicle in
                 Annotation("", coordinate: vehicle.coordinate) {
                     VehicleAnnotationView(
                         vehicle: vehicle,
@@ -86,7 +97,8 @@ struct MapScreen: View {
         }
         .onMapCameraChange(frequency: .onEnd) { context in
             visibleRegion = context.region
-            mapZoom = context.region.span.latitudeDelta
+            zoomLevel = context.region.span.latitudeDelta
+            throttledUpdateContent()
         }
     }
 
@@ -118,7 +130,7 @@ struct MapScreen: View {
         .padding(.top, 4)
     }
 
-    // MARK: - Sheet content
+    // MARK: - Sheet
 
     @ViewBuilder
     private var sheetContent: some View {
@@ -129,16 +141,29 @@ struct MapScreen: View {
 
             if let stop = selectedStop {
                 StopSheet(stop: stop)
+            } else if sheetDetent == .large {
+                SearchSheet()
             } else {
                 HomeSheet()
             }
         }
     }
 
-    // MARK: - Helpers
+    // MARK: - Performance: throttled viewport updates
 
-    private func stopsInVisibleRegion() -> [Stop] {
-        guard let region = visibleRegion else { return [] }
+    private func throttledUpdateContent() {
+        cameraChangeTask?.cancel()
+        cameraChangeTask = Task {
+            // 150ms debounce — prevents thrashing during pan/zoom
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
+            updateVisibleContent()
+        }
+    }
+
+    private func updateVisibleContent() {
+        guard let region = visibleRegion, appState.dataProvider.isLoaded else { return }
+
         let latDelta = region.span.latitudeDelta / 2
         let lngDelta = region.span.longitudeDelta / 2
         let minLat = region.center.latitude - latDelta
@@ -146,10 +171,42 @@ struct MapScreen: View {
         let minLng = region.center.longitude - lngDelta
         let maxLng = region.center.longitude + lngDelta
 
-        return appState.dataProvider.stops.filter { stop in
-            stop.lat >= minLat && stop.lat <= maxLat &&
-            stop.lng >= minLng && stop.lng <= maxLng
+        // Stops via spatial index (only when zoomed in enough)
+        if zoomLevel < 0.01 {
+            visibleStops = appState.dataProvider.stopsInRegion(
+                minLat: minLat, maxLat: maxLat, minLng: minLng, maxLng: maxLng
+            )
+        } else {
+            visibleStops = []
         }
+
+        updateVisibleVehicles()
+    }
+
+    private func updateVisibleVehicles() {
+        guard let region = visibleRegion else { return }
+
+        let latDelta = region.span.latitudeDelta / 2
+        let lngDelta = region.span.longitudeDelta / 2
+        let minLat = region.center.latitude - latDelta
+        let maxLat = region.center.latitude + latDelta
+        let minLng = region.center.longitude - lngDelta
+        let maxLng = region.center.longitude + lngDelta
+
+        // Viewport cull + cap at 300 to prevent MapKit choking
+        let maxVehicles = 300
+        let all = appState.realtimeProvider.vehicles
+        var filtered: [Vehicle] = []
+        filtered.reserveCapacity(min(all.count, maxVehicles))
+
+        for v in all {
+            if v.latitude >= minLat && v.latitude <= maxLat &&
+               v.longitude >= minLng && v.longitude <= maxLng {
+                filtered.append(v)
+                if filtered.count >= maxVehicles { break }
+            }
+        }
+        visibleVehicles = filtered
     }
 }
 
