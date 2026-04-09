@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import SwiftUI
+import os
 
 // MARK: - Debug Logger
 // Intercetta e logga ogni operazione di rete, parsing, errore.
@@ -40,6 +41,8 @@ final class DebugLogger {
         }
     }
 
+    private static let osLog = Logger(subsystem: "com.movete.roma", category: "debug")
+
     func log(_ category: LogEntry.Category, _ message: String, detail: String? = nil) {
         #if DEBUG
         let entry = LogEntry(category: category, message: message, detail: detail)
@@ -48,9 +51,11 @@ final class DebugLogger {
         if entries.count > 200 {
             entries.removeFirst(entries.count - 200)
         }
-        // Also print to console
+        // Log to both console and os.Logger for system log stream
         let ts = Self.timeFormatter.string(from: entry.timestamp)
-        print("[\(ts)] [\(category.rawValue)] \(message)\(detail.map { " — \($0)" } ?? "")")
+        let msg = "[\(ts)] [\(category.rawValue)] \(message)\(detail.map { " — \($0)" } ?? "")"
+        print(msg)
+        Self.osLog.info("\(msg, privacy: .public)")
         #endif
     }
 

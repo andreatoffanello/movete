@@ -76,7 +76,9 @@ final class DataProvider {
         self.searchIndex = parsed.searchIndex
         self.isLoaded = true
 
-        log.log(.info, "Data loaded: \(stops.count) stops, \(routes.count) routes")
+        let sampleRoute = self.routeById["105"]
+        log.log(.info, "Data loaded: \(stops.count) stops, \(routes.count) routes, routeById=\(self.routeById.count)")
+        log.log(.data, "Route 105: color=\(sampleRoute?.color ?? "NIL") agency=\(sampleRoute?.agencyId ?? "NIL")")
     }
 
     // MARK: - Background parse + index (runs off main thread)
