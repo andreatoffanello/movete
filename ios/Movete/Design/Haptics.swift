@@ -6,7 +6,7 @@ enum Haptics {
     private static let mediumImpact = UIImpactFeedbackGenerator(style: .medium)
     private static let heavyImpact = UIImpactFeedbackGenerator(style: .heavy)
     private static let notification = UINotificationFeedbackGenerator()
-    private static let selection = UISelectionFeedbackGenerator()
+    private static let selectionGenerator = UISelectionFeedbackGenerator()
 
     /// Tap su fermata, toggle piccolo
     static func light() {
@@ -40,7 +40,7 @@ enum Haptics {
 
     /// Scroll tra opzioni
     static func selection() {
-        self.selection.selectionChanged()
+        self.selectionGenerator.selectionChanged()
     }
 
     /// Prepara i generatori per risposta immediata

@@ -44,6 +44,7 @@ enum MV {
             case .tram:    return tram
             case .metro:   return metro
             case .rail:    return rail
+            case .ferry:   return Color(hex: "#06B6D4")
             case .unknown: return bus
             }
         }

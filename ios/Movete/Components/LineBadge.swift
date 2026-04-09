@@ -11,9 +11,9 @@ struct LineBadge: View {
 
         var font: Font {
             switch self {
-            case .small:   return MV.Type.caption.bold()
-            case .regular: return MV.Type.badge
-            case .large:   return MV.Type.badgeLarge
+            case .small:   return MV.Typography.caption.bold()
+            case .regular: return MV.Typography.badge
+            case .large:   return MV.Typography.badgeLarge
             }
         }
 

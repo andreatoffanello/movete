@@ -104,7 +104,7 @@ struct MapScreen: View {
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(MV.Colors.textTertiary)
                 Text("Cerca fermata o linea")
-                    .font(MV.Type.callout)
+                    .font(MV.Typography.callout)
                     .foregroundStyle(MV.Colors.textTertiary)
                 Spacer()
             }

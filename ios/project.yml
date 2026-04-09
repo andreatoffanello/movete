@@ -19,7 +19,6 @@ targets:
     platform: iOS
     sources:
       - path: Movete
-        type: folder
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.movete.roma

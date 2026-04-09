@@ -25,10 +25,10 @@ struct GlassCard<Content: View>: View {
         GlassCard {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Fermata Colosseo")
-                    .font(MV.Type.subheadline)
+                    .font(MV.Typography.subheadline)
                     .foregroundStyle(MV.Colors.textPrimary)
                 Text("3 min")
-                    .font(MV.Type.monoLarge)
+                    .font(MV.Typography.monoLarge)
                     .foregroundStyle(MV.Colors.live)
             }
         }

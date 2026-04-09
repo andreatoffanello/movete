@@ -19,7 +19,7 @@ struct TransitIcon: View {
             VStack {
                 TransitIcon(type: type)
                 Text(type.rawValue)
-                    .font(MV.Type.caption)
+                    .font(MV.Typography.caption)
                     .foregroundStyle(MV.Colors.textSecondary)
             }
         }

@@ -18,7 +18,7 @@ struct DepartureRow: View {
             // Headsign + transit type
             VStack(alignment: .leading, spacing: 2) {
                 Text(departure.headsign)
-                    .font(MV.Type.calloutMedium)
+                    .font(MV.Typography.calloutMedium)
                     .foregroundStyle(MV.Colors.textPrimary)
                     .lineLimit(1)
 
@@ -27,7 +27,7 @@ struct DepartureRow: View {
 
                     if let dock = departure.dock {
                         Text("Banchina \(dock)")
-                            .font(MV.Type.caption)
+                            .font(MV.Typography.caption)
                             .foregroundStyle(MV.Colors.textTertiary)
                     }
                 }
@@ -56,24 +56,24 @@ struct DepartureRow: View {
 
         if mins < 0 {
             Text("Partito")
-                .font(MV.Type.monoSmall)
+                .font(MV.Typography.monoSmall)
                 .foregroundStyle(MV.Colors.textTertiary)
         } else if mins == 0 {
             Text("Ora")
-                .font(MV.Type.mono)
+                .font(MV.Typography.mono)
                 .foregroundStyle(MV.Colors.warning)
         } else if mins <= 60 {
             HStack(spacing: 2) {
                 Text("\(mins)")
-                    .font(MV.Type.monoLarge)
+                    .font(MV.Typography.monoLarge)
                     .foregroundStyle(mins <= 3 ? MV.Colors.warning : MV.Colors.live)
                 Text("min")
-                    .font(MV.Type.monoSmall)
+                    .font(MV.Typography.monoSmall)
                     .foregroundStyle(MV.Colors.textSecondary)
             }
         } else {
             Text(departure.time)
-                .font(MV.Type.mono)
+                .font(MV.Typography.mono)
                 .foregroundStyle(MV.Colors.textSecondary)
         }
     }

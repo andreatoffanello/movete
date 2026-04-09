@@ -4,7 +4,7 @@ extension MV {
 
     // MARK: - Typography
 
-    enum Type {
+    enum Typography {
         // Display — hero titles
         static let displayLarge  = Font.system(size: 34, weight: .bold, design: .default)
         static let displayMedium = Font.system(size: 28, weight: .bold, design: .default)

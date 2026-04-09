@@ -40,7 +40,7 @@ struct StopSheet: View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: MV.Spacing.xxs) {
                 Text(stop.name)
-                    .font(MV.Type.headline)
+                    .font(MV.Typography.headline)
                     .foregroundStyle(MV.Colors.textPrimary)
 
                 if let lines = stop.lines, !lines.isEmpty {
@@ -54,9 +54,9 @@ struct StopSheet: View {
                                 size: .small
                             )
                         }
-                        if lines!.count > 8 {
-                            Text("+\(lines!.count - 8)")
-                                .font(MV.Type.captionMedium)
+                        if lines.count > 8 {
+                            Text("+\(lines.count - 8)")
+                                .font(MV.Typography.captionMedium)
                                 .foregroundStyle(MV.Colors.textTertiary)
                         }
                     }
@@ -111,7 +111,7 @@ struct StopSheet: View {
                 .font(.system(size: 28))
                 .foregroundStyle(MV.Colors.textTertiary)
             Text("Nessuna partenza oggi")
-                .font(MV.Type.callout)
+                .font(MV.Typography.callout)
                 .foregroundStyle(MV.Colors.textSecondary)
         }
         .frame(maxWidth: .infinity)

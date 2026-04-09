@@ -32,7 +32,7 @@ struct LiveIndicator: View {
                     .opacity(isPulsing ? 0.6 : 1.0)
 
                 Text("LIVE")
-                    .font(MV.Type.captionMedium)
+                    .font(MV.Typography.captionMedium)
                     .foregroundStyle(MV.Colors.live)
             }
             .padding(.horizontal, 8)

@@ -28,7 +28,7 @@ struct CountdownLabel: View {
                     .foregroundStyle(MV.Colors.textSecondary)
             }
         }
-        .font(MV.Type.mono)
+        .font(MV.Typography.mono)
         .onReceive(timer) { _ in now = Date() }
     }
 

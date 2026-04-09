@@ -9,7 +9,7 @@ struct HomeSheet: View {
                 // Header
                 HStack {
                     Text("Movete")
-                        .font(MV.Type.displayMedium)
+                        .font(MV.Typography.displayMedium)
                         .foregroundStyle(MV.Colors.textPrimary)
                     Spacer()
                 }
@@ -36,7 +36,7 @@ struct HomeSheet: View {
     private var nearbySection: some View {
         VStack(alignment: .leading, spacing: MV.Spacing.sm) {
             Label("Fermate vicine", systemImage: "location.fill")
-                .font(MV.Type.footnoteMedium)
+                .font(MV.Typography.footnoteMedium)
                 .foregroundStyle(MV.Colors.textSecondary)
                 .padding(.horizontal, MV.Spacing.md + 4)
 
@@ -46,7 +46,7 @@ struct HomeSheet: View {
                 )
                 if nearby.isEmpty {
                     Text("Nessuna fermata nelle vicinanze")
-                        .font(MV.Type.callout)
+                        .font(MV.Typography.callout)
                         .foregroundStyle(MV.Colors.textTertiary)
                         .padding(.horizontal, MV.Spacing.md + 4)
                 } else {
@@ -64,7 +64,7 @@ struct HomeSheet: View {
                     Image(systemName: "location.slash")
                         .font(.system(size: 14))
                     Text("Abilita la posizione per vedere le fermate vicine")
-                        .font(MV.Type.callout)
+                        .font(MV.Typography.callout)
                 }
                 .foregroundStyle(MV.Colors.textTertiary)
                 .padding(.horizontal, MV.Spacing.md + 4)
@@ -79,7 +79,7 @@ struct HomeSheet: View {
         if !appState.favoritesStore.stopIds.isEmpty {
             VStack(alignment: .leading, spacing: MV.Spacing.sm) {
                 Label("Preferiti", systemImage: "star.fill")
-                    .font(MV.Type.footnoteMedium)
+                    .font(MV.Typography.footnoteMedium)
                     .foregroundStyle(MV.Colors.textSecondary)
                     .padding(.horizontal, MV.Spacing.md + 4)
 
@@ -124,7 +124,7 @@ struct HomeSheet: View {
                 .font(.system(size: 32))
                 .foregroundStyle(MV.Colors.warning)
             Text(error)
-                .font(MV.Type.callout)
+                .font(MV.Typography.callout)
                 .foregroundStyle(MV.Colors.textSecondary)
                 .multilineTextAlignment(.center)
         }
@@ -140,7 +140,7 @@ private struct NearbyStopCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: MV.Spacing.xs) {
             Text(stop.name)
-                .font(MV.Type.calloutMedium)
+                .font(MV.Typography.calloutMedium)
                 .foregroundStyle(MV.Colors.textPrimary)
                 .lineLimit(1)
 
@@ -148,16 +148,16 @@ private struct NearbyStopCard: View {
                 HStack(spacing: 4) {
                     ForEach(lines.prefix(4), id: \.self) { line in
                         Text(line)
-                            .font(MV.Type.captionMedium)
+                            .font(MV.Typography.captionMedium)
                             .foregroundStyle(MV.Colors.textSecondary)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .background(MV.Colors.surfaceElevated)
                             .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                     }
-                    if lines!.count > 4 {
-                        Text("+\(lines!.count - 4)")
-                            .font(MV.Type.captionMedium)
+                    if lines.count > 4 {
+                        Text("+\(lines.count - 4)")
+                            .font(MV.Typography.captionMedium)
                             .foregroundStyle(MV.Colors.textTertiary)
                     }
                 }
@@ -179,7 +179,7 @@ private struct FavoriteStopRow: View {
                 .foregroundStyle(MV.Colors.accent)
 
             Text(stop.name)
-                .font(MV.Type.calloutMedium)
+                .font(MV.Typography.calloutMedium)
                 .foregroundStyle(MV.Colors.textPrimary)
                 .lineLimit(1)
 
@@ -201,10 +201,10 @@ private struct StatBadge: View {
     var body: some View {
         VStack(spacing: 2) {
             Text(value)
-                .font(MV.Type.mono)
+                .font(MV.Typography.mono)
                 .foregroundStyle(MV.Colors.accent)
             Text(label)
-                .font(MV.Type.caption)
+                .font(MV.Typography.caption)
                 .foregroundStyle(MV.Colors.textTertiary)
         }
     }
