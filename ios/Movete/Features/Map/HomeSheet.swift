@@ -19,9 +19,6 @@ struct HomeSheet: View {
 
                     // Nearby stops
                     nearbySection
-
-                    // Stats
-                    statsSection
                 }
             }
             .padding(.top, MV.Spacing.xs)
@@ -127,21 +124,6 @@ struct HomeSheet: View {
         }
     }
 
-    // MARK: - Stats (subtle, bottom)
-
-    private var statsSection: some View {
-        HStack(spacing: MV.Spacing.lg) {
-            StatBadge(value: "\(appState.dataProvider.routes.count)", label: "Linee")
-            StatBadge(value: "\(appState.dataProvider.stops.count)", label: "Fermate")
-            StatBadge(
-                value: "\(appState.realtimeProvider.vehicles.count)",
-                label: "Mezzi live"
-            )
-        }
-        .padding(.horizontal, MV.Spacing.md + 4)
-        .padding(.top, MV.Spacing.sm)
-    }
-
     // MARK: - Loading / Error
 
     private var loadingState: some View {
@@ -228,18 +210,3 @@ private struct FavoriteStopRow: View {
     }
 }
 
-private struct StatBadge: View {
-    let value: String
-    let label: String
-
-    var body: some View {
-        VStack(spacing: 2) {
-            Text(value)
-                .font(MV.Typography.mono)
-                .foregroundStyle(MV.Colors.accent)
-            Text(label)
-                .font(MV.Typography.caption)
-                .foregroundStyle(MV.Colors.textTertiary)
-        }
-    }
-}
