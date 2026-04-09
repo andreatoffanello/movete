@@ -154,34 +154,13 @@ private struct NearbyStopCard: View {
     let stop: Stop
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MV.Spacing.xs) {
-            Text(stop.name)
-                .font(MV.Typography.calloutMedium)
-                .foregroundStyle(MV.Colors.textPrimary)
-                .lineLimit(1)
-
-            if let lines = stop.lines, !lines.isEmpty {
-                HStack(spacing: 4) {
-                    ForEach(lines.prefix(4), id: \.self) { line in
-                        Text(line)
-                            .font(MV.Typography.captionMedium)
-                            .foregroundStyle(MV.Colors.textSecondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(MV.Colors.surfaceElevated)
-                            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-                    }
-                    if lines.count > 4 {
-                        Text("+\(lines.count - 4)")
-                            .font(MV.Typography.captionMedium)
-                            .foregroundStyle(MV.Colors.textTertiary)
-                    }
-                }
-            }
-        }
-        .padding(MV.Spacing.sm)
-        .frame(width: 160, alignment: .leading)
-        .mvSurface()
+        Text(stop.name)
+            .font(MV.Typography.calloutMedium)
+            .foregroundStyle(MV.Colors.textPrimary)
+            .lineLimit(2)
+            .padding(.horizontal, MV.Spacing.md)
+            .padding(.vertical, MV.Spacing.sm)
+            .mvSurface()
     }
 }
 
