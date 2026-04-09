@@ -692,6 +692,17 @@ def build_stop_departures(
 
 # --- Routes List ---
 
+# Fallback colors per operator (used when GTFS route_color is empty)
+OPERATOR_COLORS = {
+    "OP1":   ("#910021", "#FFFFFF"),   # ATAC — bordeaux
+    "OP265": ("#910021", "#FFFFFF"),   # Troiani — same as ATAC (subcontractor)
+    "SAP":   ("#FF6600", "#FFFFFF"),   # SAP/ATR Mobility — arancione
+    "BIS":   ("#000066", "#FFFFFF"),   # BIS — blu scuro
+    "TUS":   ("#01675C", "#FFFFFF"),   # Tuscia — verde scuro
+}
+DEFAULT_OPERATOR_COLOR = ("#184CA1", "#FFFFFF")  # Roma TPL / fallback — blu
+
+
 def build_routes_list(
     routes_raw: list[dict],
     directions: dict[str, list[dict]],
@@ -701,10 +712,20 @@ def build_routes_list(
     for r in routes_raw:
         route_id = r["route_id"].strip()
         name = r.get("route_short_name", route_id).strip()
-        color = r.get("route_color", "000000").strip()
-        text_color = r.get("route_text_color", "FFFFFF").strip()
+        gtfs_color = r.get("route_color", "").strip()
+        gtfs_text_color = r.get("route_text_color", "").strip()
+        agency_id = r.get("agency_id", "").strip()
         route_type_code = r.get("route_type", "3")
         transit_type = ROUTE_TYPE_MAP.get(route_type_code, "bus")
+
+        # Use GTFS color if present and not empty/black, else operator fallback
+        if gtfs_color and gtfs_color != "000000":
+            color = f"#{gtfs_color}" if not gtfs_color.startswith("#") else gtfs_color
+            text_color = f"#{gtfs_text_color}" if gtfs_text_color and gtfs_text_color != "FFFFFF" else "#FFFFFF"
+        else:
+            op_color, op_text = OPERATOR_COLORS.get(agency_id, DEFAULT_OPERATOR_COLOR)
+            color = op_color
+            text_color = op_text
 
         route_dirs = directions.get(route_id, [])
 
@@ -712,10 +733,10 @@ def build_routes_list(
             "id": route_id,
             "name": name,
             "longName": r.get("route_long_name", "").strip().strip('"'),
-            "color": f"#{color}" if not color.startswith("#") else color,
-            "textColor": f"#{text_color}" if not text_color.startswith("#") else text_color,
+            "color": color,
+            "textColor": text_color,
             "transitType": transit_type,
-            "agencyId": r.get("agency_id", "").strip(),
+            "agencyId": agency_id,
             "route_url": r.get("route_url", "").strip(),
             "directions": route_dirs,
         })

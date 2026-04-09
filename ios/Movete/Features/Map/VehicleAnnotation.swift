@@ -16,7 +16,7 @@ struct VehicleAnnotationView: View, Equatable {
     }
 
     var body: some View {
-        let color = route.map { MV.Colors.transitColor(for: $0.transitType) } ?? MV.Colors.bus
+        let color = route.map { Color(hex: $0.color) } ?? MV.Colors.bus
 
         ZStack {
             Circle()
