@@ -1,0 +1,7 @@
+appId: com.movete.roma
+---
+- launchApp
+- assertVisible: "Movete"
+- assertVisible: "Ora"
+- assertVisible: "Mappa"
+- assertVisible: "Linee"
