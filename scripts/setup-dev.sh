@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+RT185="com.apple.CoreSimulator.SimRuntime.iOS-18-5"
+IP16="com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro"
+
 echo "Verifica prerequisiti di sviluppo mobile..."
 
 if ! which idb &>/dev/null; then
@@ -22,7 +25,7 @@ fi
 echo ""
 echo "Setup simulatore (movete-dev)..."
 if ! xcrun simctl list devices | grep -q "movete-dev"; then
-  xcrun simctl create "movete-dev" "iPhone 16 Pro" "iOS 18.5"
+  xcrun simctl create "movete-dev" "$IP16" "$RT185"
   echo "✓ Creato movete-dev"
 else
   echo "✓ movete-dev già esistente"
