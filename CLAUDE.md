@@ -28,6 +28,12 @@ App nativa iOS per il trasporto pubblico di Roma. SwiftUI, iOS 17+, zero backend
 
 ## PREREQUISITI DI SVILUPPO MOBILE
 
+**Su un nuovo Mac, esegui una volta:**
+```bash
+bash scripts/setup-dev.sh
+```
+Lo script installa idb, Maestro e crea il simulatore `movete-dev`. In alternativa, installa manualmente:
+
 ### IDB Companion
 
 ```bash
